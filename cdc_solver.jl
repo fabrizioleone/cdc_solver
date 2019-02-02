@@ -1,6 +1,5 @@
 module cdc_solver
 
-export prod_interval
 export solve_cdc
 
 ############################
@@ -27,16 +26,35 @@ function solve_cdc(; N::Int, obj::Function, equalise_obj::Function, zero_D_j_obj
     user_zero_D_j_obj = zero_D_j_obj
     user_max_iter = max_iter
 
+    # initialise, then run algorithm
     none = falses(user_N)
+    ## below left0: J_opt is empty
     left0 = minimum([user_zero_D_j_obj(none, j) for j in 1:user_N])
+    ## above right0: J_opt is full
     right0 = maximum([user_zero_D_j_obj(.~ none, j) for j in 1:user_N])
     interval0 = prod_interval(left0, right0, none, .~ none)
-    solve_interval(interval0)
+    ## fun algorithm for interior
+    solved = solve_interval(interval0)
+
+    # paste together adjacent intervals with identical decisions
+    i_new_J = [solved[n-1].inf != solved[n].inf for n in 2:length(solved)]
+    pushfirst!(i_new_J, true) # the first interval in solved should be included
+    new_J = [int.inf for int in solved[i_new_J]]
+    cutoffs = [int.left for int in solved[i_new_J]]
+    push!(cutoffs, right0)
+
+    # add in the (0, left0) and (right0, Inf) intervals
+    pushfirst!(cutoffs, 0)
+    pushfirst!(new_J, none)
+    push!(cutoffs, Inf)
+    push!(new_J, .~ none)
+
+    (cutoffs, new_J)
 end
 
-#################
-## DEFINITIONS ##
-#################
+######################
+## TYPE DEFINITIONS ##
+######################
 
 # setting up interval structures
 struct prod_interval
