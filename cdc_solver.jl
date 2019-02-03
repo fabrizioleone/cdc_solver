@@ -49,7 +49,7 @@ function solve_cdc(; N::Int, obj::Function, equalise_obj::Function, zero_D_j_obj
     push!(cutoffs, Inf)
     push!(new_J, .~ none)
 
-    (cutoffs, new_J)
+    (new_J, cutoffs)
 end
 
 ######################
