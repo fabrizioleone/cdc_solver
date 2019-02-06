@@ -85,6 +85,10 @@ end
 function Base.in(prod::Number, interval::prod_interval)
     prod < interval.right && prod > interval.left
 end
+function Base.print(interval::prod_interval)
+    print("interval: [", interval.left, ", ", interval.right, ") \n")
+    return hcat(interval.inf, interval.sup)
+end
 
 #########################
 ## ALGORITHM FUNCTIONS ##
@@ -179,7 +183,13 @@ function update_interval(interval0::prod_interval)
     ## we should end up with M+1 intervals
     push!(cutoffs, interval0.right)
     pushfirst!(cutoffs, interval0.left)
-    [prod_interval(cutoffs[m], cutoffs[m+1], new_infs[m], new_sups[m]) for m in 1:M+1]
+    new_left = cutoffs[1:M+1]
+    new_right = cutoffs[2:M+2]
+    ## finally, exclude any measure-0 intervals
+    i_not_measure0 = (new_left .!= new_right)
+
+    # return new intervals
+    [prod_interval(new_left[n], new_right[n], new_infs[n], new_sups[n]) for n in findall(i_not_measure0)]
 end
 
 # outer loop: update interval into set of intervals with inf=sup
@@ -238,6 +248,7 @@ function solve_interval(interval0::prod_interval)
     # calculate intervals with multiple inf=sup options
     ## new intervals
     new_endpoints = vcat([[int.left; int.right] for int in converged]...) |> unique
+    sort!(new_endpoints)
     new_left = new_endpoints[1:length(new_endpoints)-1]
     new_right = new_endpoints[2:length(new_endpoints)]
     ## intervals from converged
@@ -267,7 +278,7 @@ function calc_global_max(left::Number, right::Number, Js::Array{<: AbstractArray
         end
     end
     # create intervals based on when objs cross each other
-    break_points = [user_equalise_obj(pair...) for pair in J_pairs]
+    break_points = [user_equalise_obj(pair...) for pair in J_pairs] |> unique
     ## drop crossing points that aren't in the original interval
     drop = [(point < left) || (point > right) for point in break_points]
     deleteat!(break_points, drop)
