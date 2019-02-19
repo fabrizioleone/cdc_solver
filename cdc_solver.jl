@@ -5,7 +5,6 @@ export solve_cdc
 ############################
 ## EXPOSED USER FUNCTIONS ##
 ############################
-
 function solve_cdc(; N::Int, obj::Function, equalise_obj::Function, zero_D_j_obj::Function, max_iter::Int = 100)
     if N < 1
         error("number of choice elements must be positive")
@@ -55,7 +54,6 @@ end
 ######################
 ## TYPE DEFINITIONS ##
 ######################
-
 # setting up interval structures
 struct prod_interval
     left::Number
@@ -93,7 +91,6 @@ end
 #########################
 ## ALGORITHM FUNCTIONS ##
 #########################
-
 # inner loop: iterating algorithm until inf_n = inf_{n+1} and same for sup
 ## iterater
 function converge_interval(interval0::prod_interval)
@@ -103,6 +100,7 @@ function converge_interval(interval0::prod_interval)
     push!(iterating, interval0)
 
     for n = 1:user_max_iter
+
         update = [update_interval(int) for int in iterating]
         done = [check_interval_converged(pair...) for pair in zip(iterating, update)]
         append!(converged, vcat(update[done]...))
@@ -123,11 +121,9 @@ function check_interval_converged(int::prod_interval, update::Array{prod_interva
 end
 ## update for the iterator: takes an interval, returns an array of intervals due to update
 function update_interval(interval0::prod_interval)
-    i_maybes = map(xor, interval0.inf, interval0.sup)
-    maybes = findall(i_maybes)
-    user_N = length(interval0.inf)
+    maybes = findall(map(xor, interval0.inf, interval0.sup))
 
-    # find the cutoffs for D_j(inf) = 0 (and sup) for each j in i_maybes
+    # find the cutoffs for D_j(inf) = 0 (and sup) for each j in maybes
     # notes: these vectors are length N_maybes
     cutoffs_inf_all = [user_zero_D_j_obj(interval0.sup, j) for j in maybes]
     cutoffs_sup_all = [user_zero_D_j_obj(interval0.inf, j) for j in maybes]
@@ -229,16 +225,17 @@ function split_set_space(interval0::prod_interval)
     new_inf = similar(interval0.inf)
     copyto!(new_inf, interval0.inf)
     new_inf[j] = true
-    interval_j_on = prod_interval(interval0.left, interval0.right, new_inf, interval0.sup)
 
     # make interval with it definitely turned off
     new_sup = similar(interval0.sup)
     copyto!(new_sup, interval0.sup)
     new_sup[j] = false
-    interval_j_off = prod_interval(interval0.left, interval0.right, interval0.inf, new_sup)
+
+    @async interval_j_on = prod_interval(interval0.left, interval0.right, new_inf, interval0.sup)
+    @async interval_j_off = prod_interval(interval0.left, interval0.right, interval0.inf, new_sup)
 
     # converge both intervals
-    return vcat(converge_interval(interval_j_on), converge_interval(interval_j_off))
+    @sync return vcat(converge_interval(interval_j_on), converge_interval(interval_j_off))
 end
 
 # final step: take intervals with multiple J=inf=sup options and compare them
