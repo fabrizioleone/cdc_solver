@@ -32,7 +32,7 @@ function solve_cdc(; N::Int, obj::Function, equalise_obj::Function, zero_D_j_obj
     ## above right0: J_opt is full
     right0 = maximum([user_zero_D_j_obj(.~ none, j) for j in 1:user_N])
     interval0 = prod_interval(left0, right0, none, .~ none)
-    ## fun algorithm for interior
+    ## run algorithm for interior
     solved = solve_interval(interval0)
 
     # paste together adjacent intervals with identical decisions
@@ -100,7 +100,6 @@ function converge_interval(interval0::prod_interval)
     push!(iterating, interval0)
 
     for n = 1:user_max_iter
-
         update = [update_interval(int) for int in iterating]
         done = [check_interval_converged(pair...) for pair in zip(iterating, update)]
         append!(converged, vcat(update[done]...))
@@ -130,10 +129,9 @@ function update_interval(interval0::prod_interval)
 
     # sup-type cutoffs
     ## js with cutoffs to the right of the interval should be dropped
-    i_drop = [cutoff >= interval0.right for cutoff in cutoffs_sup_all]
     base_sup = similar(interval0.sup)
     copyto!(base_sup, interval0.sup)
-    base_sup[maybes[i_drop]] .= false
+    base_sup[maybes[cutoffs_sup_all .>= interval0.right]] .= false
     ## js with cutoffs within the interval need to spawn new intervals
     i_cutoffs_sup = [in(cutoff, interval0) for cutoff in cutoffs_sup_all]
 
@@ -231,11 +229,11 @@ function split_set_space(interval0::prod_interval)
     copyto!(new_sup, interval0.sup)
     new_sup[j] = false
 
-    @async interval_j_on = prod_interval(interval0.left, interval0.right, new_inf, interval0.sup)
-    @async interval_j_off = prod_interval(interval0.left, interval0.right, interval0.inf, new_sup)
+    interval_j_on = prod_interval(interval0.left, interval0.right, new_inf, interval0.sup)
+    interval_j_off = prod_interval(interval0.left, interval0.right, interval0.inf, new_sup)
 
     # converge both intervals
-    @sync return vcat(converge_interval(interval_j_on), converge_interval(interval_j_off))
+    return vcat(converge_interval(interval_j_on), converge_interval(interval_j_off))
 end
 
 # final step: take intervals with multiple J=inf=sup options and compare them
