@@ -5,7 +5,7 @@ export solve_cdc
 ############################
 ## EXPOSED USER FUNCTIONS ##
 ############################
-function solve_cdc(; N::Int, obj::Function, equalise_obj::Function, zero_D_j_obj::Function, max_iter::Int = 100)
+function solve_cdc(left0, right0, inf0, sup0; N::Int, obj::Function, equalise_obj::Function, zero_D_j_obj::Function, max_iter::Int = 100)
     if N < 1
         error("number of choice elements must be positive")
     end
@@ -26,12 +26,7 @@ function solve_cdc(; N::Int, obj::Function, equalise_obj::Function, zero_D_j_obj
     user_max_iter = max_iter
 
     # initialise, then run algorithm
-    none = falses(user_N)
-    ## below left0: J_opt is empty
-    left0 = minimum([user_zero_D_j_obj(none, j) for j in 1:user_N])
-    ## above right0: J_opt is full
-    right0 = maximum([user_zero_D_j_obj(.~ none, j) for j in 1:user_N])
-    interval0 = prod_interval(left0, right0, none, .~ none)
+    interval0 = prod_interval(left0, right0, inf0, sup0)
     ## run algorithm for interior
     solved = solve_interval(interval0)
 
@@ -42,13 +37,29 @@ function solve_cdc(; N::Int, obj::Function, equalise_obj::Function, zero_D_j_obj
     cutoffs = [int.left for int in solved[i_new_J]]
     push!(cutoffs, right0)
 
-    # add in the (0, left0) and (right0, Inf) intervals
-    pushfirst!(cutoffs, 0)
-    pushfirst!(new_J, none)
-    push!(cutoffs, Inf)
-    push!(new_J, .~ none)
-
     (new_J, cutoffs)
+end
+function solve_cdc(; N::Int, obj::Function, equalise_obj::Function, zero_D_j_obj::Function, max_iter::Int = 100) # if no initialisation given
+    inf0 = falses(N)
+    sup0 = trues(N)
+    # find left0:
+    inf0_cutoffs = [zero_D_j_obj(inf0, j) for j in 1:N]
+    left0 = minimum(inf0_cutoffs)
+    inf0[argmin(inf0_cutoffs)] = true
+    # find right0:
+    sup0_cutoffs = [zero_D_j_obj(sup0, j) for j in 1:N]
+    right0 = maximum(sup0_cutoffs)
+    sup0[argmax(sup0_cutoffs)] = false
+
+    (J, cutoffs) = solve_cdc(left0, right0, inf0, sup0, N = N, obj = obj, equalise_obj = equalise_obj, zero_D_j_obj = zero_D_j_obj, max_iter = max_iter)
+
+    # add in bottom and top intervals
+    pushfirst!(J, falses(N))
+    push!(J, trues(N))
+    pushfirst!(cutoffs, -Inf)
+    push!(cutoffs, Inf)
+
+    return (J, cutoffs)
 end
 
 ######################
@@ -126,21 +137,23 @@ function update_interval(interval0::prod_interval)
     # notes: these vectors are length N_maybes
     cutoffs_inf_all = [user_zero_D_j_obj(interval0.sup, j) for j in maybes]
     cutoffs_sup_all = [user_zero_D_j_obj(interval0.inf, j) for j in maybes]
+    if any(cutoffs_inf_all .< cutoffs_sup_all)
+        deleteat!(error_interval, eachindex(error_interval))
+        push!(error_interval, interval0)
+        error("inf cutoffs less than sup cutoff")
+    end
 
     # sup-type cutoffs
     ## js with cutoffs to the right of the interval should be dropped
-    base_sup = similar(interval0.sup)
-    copyto!(base_sup, interval0.sup)
+    base_sup = interval0.sup[:]
     base_sup[maybes[cutoffs_sup_all .>= interval0.right]] .= false
     ## js with cutoffs within the interval need to spawn new intervals
     i_cutoffs_sup = [in(cutoff, interval0) for cutoff in cutoffs_sup_all]
 
     # inf-type cutoffs
     ## js with cutoffs to the left of the interval should be turned on
-    i_add = [cutoff <= interval0.left for cutoff in cutoffs_inf_all]
-    base_inf = similar(interval0.inf)
-    copyto!(base_inf, interval0.inf)
-    base_inf[maybes[i_add]] .= true
+    base_inf = interval0.inf[:]
+    base_inf[maybes[cutoffs_inf_all .<= interval0.left]] .= true
     ## js with cutoffs within the interval need to spawn new intervals: length N_maybe
     i_cutoffs_inf = [in(cutoff, interval0) for cutoff in cutoffs_inf_all]
 
@@ -288,5 +301,7 @@ function calc_global_max(left::Number, right::Number, Js::Array{<: AbstractArray
 
     return [prod_interval(break_points[n], break_points[n+1], Js[i_best[n]], Js[i_best[n]]) for n = 1:length(midpoints)]
 end
+
+error_interval = prod_interval[]
 
 end
