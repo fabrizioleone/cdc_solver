@@ -1,10 +1,4 @@
-function indiv_alg(th, rh, Gamma, t, f, ga_ji, d_jk, M, xi, pro_min, L, A, T; z::Float64, C::Int, c::Array{Float64, 1}, X::Array{Float64, 1}, P_exp::Array{Float64, 1}, i::Int, max_iter::Int = 100)
-    Theta_blocks_jki = @. (1 - t)^(th/(rh-1)) * (c*ga_ji*d_jk/T).^(-th)
-    # k-country demand: X*P^(rh-1)
-    B_k = reshape(X./P_exp, 1, C)
-    Theta_k(J::AbstractArray{Bool, 1}) = sum(Theta_blocks_jki[:, :, i] .* J, dims = 1)
-    Pi(J) = rh*A*z*sum(B_k.*Theta_k(J).^((rh-1)/th)) - sum(c.*f.*(1 .- t).*J)
-    # Pi(J) = obj(J, z)
+function indiv_alg(Pi::Function; N::Int, max_iter::Int = 100)
     function D_j_Pi(J::BitArray{1}; j::Int)
         J_j_on = similar(J)
         J_j_off = similar(J)
@@ -17,8 +11,8 @@ function indiv_alg(th, rh, Gamma, t, f, ga_ji, d_jk, M, xi, pro_min, L, A, T; z:
         Pi(J_j_on) - Pi(J_j_off)
     end
     function update_pair(; inf::BitArray{1}, sup::BitArray{1})
-        max_mv = [D_j_Pi(inf; j = j) for j in 1:C]
-        min_mv = [D_j_Pi(sup; j = j) for j in 1:C]
+        max_mv = [D_j_Pi(inf; j = j) for j in 1:N]
+        min_mv = [D_j_Pi(sup; j = j) for j in 1:N]
 
         new_inf = (inf .| (min_mv .> 0)) .& sup
         new_sup = (max_mv .> 0) .& sup
@@ -61,7 +55,7 @@ function indiv_alg(th, rh, Gamma, t, f, ga_ji, d_jk, M, xi, pro_min, L, A, T; z:
         return [[infj1, supj1], [infj0, supj0]]
     end
     function solve()
-        (inf, sup) = converge_sandwich(inf0 = falses(C), sup0 = trues(C))
+        (inf, sup) = converge_sandwich(inf0 = falses(N), sup0 = trues(N))
         if inf == sup
             return inf
         end
