@@ -1,4 +1,4 @@
-function indiv_alg(Pi::Function; N::Int, max_iter::Int = 100)
+function AE_alg(Pi::Function; N::Int, max_iter::Int = 100)
     function D_j_Pi(J::BitArray{1}; j::Int)
         J_j_on = similar(J)
         J_j_off = similar(J)
