@@ -80,7 +80,8 @@ function AE_alg(Pi::Function; N::Int, max_iter::Int = 100)
         end
 
         possibilities = [pair[1] for pair in possibilities]
-        i_J_opt = findmax(Pi.(possibilities))
+        i_J_opt = findmax(Pi.(possibilities))[2]
+        possobilities[i_J_opt]
     end
 
     solve()
